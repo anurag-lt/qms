@@ -4,11 +4,12 @@ import java.sql.Date;
 import java.sql.Timestamp;
 
 /**
- * Represents a deviation within the quality management system.
+ * Represents a deviation instance within the quality management system.
  */
 public class Deviation {
+
+    // Attributes
     private int id;
-    private Date dateOfIdentification;
     private Date dateOfOccurrence;
     private String description;
     private String deviationNumber;
@@ -20,203 +21,151 @@ public class Deviation {
     private Enums.DeviationStatus status;
     private Timestamp timeOfIdentification;
 
+    // Constructors
+    public Deviation() {
+    }
+
+    // Getters
     /**
      * Gets the unique identifier for the deviation.
-     * @return id as int
+     * @return the id of the deviation
      */
     public int getId() {
         return id;
     }
 
     /**
-     * Sets the unique identifier for the deviation.
-     * @param id unique identifier
-     */
-    public void setId(int id) {
-        this.id = id;
-    }
-
-    /**
-     * Gets the date when the deviation was identified.
-     * @return identification date
-     */
-    public Date getDateOfIdentification() {
-        return dateOfIdentification;
-    }
-
-    /**
-     * Sets the date when the deviation was identified.
-     * @param dateOfIdentification date of identification
-     */
-    public void setDateOfIdentification(Date dateOfIdentification) {
-        this.dateOfIdentification = dateOfIdentification;
-    }
-
-    /**
-     * Gets the date when the deviation occurred.
-     * @return occurrence date
+     * Gets the date of occurrence of the deviation.
+     * @return the occurrence date
      */
     public Date getDateOfOccurrence() {
         return dateOfOccurrence;
     }
 
     /**
-     * Sets the date when the deviation occurred.
-     * @param dateOfOccurrence date of occurrence
-     */
-    public void setDateOfOccurrence(Date dateOfOccurrence) {
-        this.dateOfOccurrence = dateOfOccurrence;
-    }
-
-    /**
      * Gets the description of the deviation.
-     * @return deviation description
+     * @return the deviation description
      */
     public String getDescription() {
         return description;
     }
 
     /**
-     * Sets the description of the deviation.
-     * @param description deviation description
-     */
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    /**
      * Gets the deviation number.
-     * @return deviation number
+     * @return the deviation number
      */
     public String getDeviationNumber() {
         return deviationNumber;
     }
 
     /**
-     * Sets the deviation number.
-     * @param deviationNumber unique deviation code
-     */
-    public void setDeviationNumber(String deviationNumber) {
-        this.deviationNumber = deviationNumber;
-    }
-
-    /**
      * Gets the severity of the deviation.
-     * @return deviation severity
+     * @return the deviation severity
      */
     public Enums.DeviationSeverity getDeviationSeverity() {
         return deviationSeverity;
     }
 
     /**
-     * Sets the severity of the deviation.
-     * @param deviationSeverity severity level
-     */
-    public void setDeviationSeverity(Enums.DeviationSeverity deviationSeverity) {
-        this.deviationSeverity = deviationSeverity;
-    }
-
-    /**
      * Gets the type of the deviation.
-     * @return deviation type
+     * @return the deviation type
      */
     public Enums.DeviationType getDeviationType() {
         return deviationType;
     }
 
     /**
-     * Sets the type of the deviation.
-     * @param deviationType type of deviation
-     */
-    public void setDeviationType(Enums.DeviationType deviationType) {
-        this.deviationType = deviationType;
-    }
-
-    /**
-     * Gets the remarks associated with the deviation.
-     * @return remarks
+     * Gets the remarks related to the deviation.
+     * @return the remarks
      */
     public String getRemarks() {
         return remarks;
     }
 
     /**
-     * Sets the remarks associated with the deviation.
-     * @param remarks additional notes
-     */
-    public void setRemarks(String remarks) {
-        this.remarks = remarks;
-    }
-
-    /**
      * Gets the risk assessment of the deviation.
-     * @return risk assessment
+     * @return the risk assessment text
      */
     public String getRiskAssessment() {
         return riskAssessment;
     }
 
     /**
-     * Sets the risk assessment of the deviation.
-     * @param riskAssessment risk evaluation
-     */
-    public void setRiskAssessment(String riskAssessment) {
-        this.riskAssessment = riskAssessment;
-    }
-
-    /**
      * Gets the standard procedure involved in the deviation.
-     * @return standard procedure
+     * @return the standard procedure text
      */
     public String getStandardProcedure() {
         return standardProcedure;
     }
 
     /**
-     * Sets the standard procedure involved in the deviation.
-     * @param standardProcedure procedure name
-     */
-    public void setStandardProcedure(String standardProcedure) {
-        this.standardProcedure = standardProcedure;
-    }
-
-    /**
      * Gets the status of the deviation.
-     * @return deviation status
+     * @return the deviation status
      */
     public Enums.DeviationStatus getStatus() {
         return status;
     }
 
     /**
-     * Sets the status of the deviation.
-     * @param status current status
-     */
-    public void setStatus(Enums.DeviationStatus status) {
-        this.status = status;
-    }
-
-    /**
      * Gets the time of identification of the deviation.
-     * @return time of identification
+     * @return the time of identification
      */
     public Timestamp getTimeOfIdentification() {
         return timeOfIdentification;
     }
 
-    /**
-     * Sets the time of identification of the deviation.
-     * @param timeOfIdentification time stamp
-     */
+    // Setters
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public void setDateOfOccurrence(Date dateOfOccurrence) {
+        this.dateOfOccurrence = dateOfOccurrence;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public void setDeviationNumber(String deviationNumber) {
+        this.deviationNumber = deviationNumber;
+    }
+
+    public void setDeviationSeverity(Enums.DeviationSeverity deviationSeverity) {
+        this.deviationSeverity = deviationSeverity;
+    }
+
+    public void setDeviationType(Enums.DeviationType deviationType) {
+        this.deviationType = deviationType;
+    }
+
+    public void setRemarks(String remarks) {
+        this.remarks = remarks;
+    }
+
+    public void setRiskAssessment(String riskAssessment) {
+        this.riskAssessment = riskAssessment;
+    }
+
+    public void setStandardProcedure(String standardProcedure) {
+        this.standardProcedure = standardProcedure;
+    }
+
+    public void setStatus(Enums.DeviationStatus status) {
+        this.status = status;
+    }
+
     public void setTimeOfIdentification(Timestamp timeOfIdentification) {
         this.timeOfIdentification = timeOfIdentification;
     }
+
+    // toString Method
 
     @Override
     public String toString() {
         return "Deviation{" +
                 "id=" + id +
-                ", dateOfIdentification=" + dateOfIdentification +
                 ", dateOfOccurrence=" + dateOfOccurrence +
                 ", description='" + description + '\'' +
                 ", deviationNumber='" + deviationNumber + '\'' +

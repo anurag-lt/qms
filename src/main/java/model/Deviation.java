@@ -4,11 +4,9 @@ import java.sql.Date;
 import java.sql.Timestamp;
 
 /**
- * POJO class for Deviation entity.
+ * Represents a deviation within the quality management system.
  */
 public class Deviation {
-
-    // Attributes
     private int id;
     private Date dateOfIdentification;
     private Date dateOfOccurrence;
@@ -22,54 +20,49 @@ public class Deviation {
     private Enums.DeviationStatus status;
     private Timestamp timeOfIdentification;
 
-    // Constructors
-    public Deviation() {
-    }
-
-    // Getters and Setters
     /**
-     * Gets the primary key ID of the deviation.
-     * @return id as int.
+     * Gets the unique identifier for the deviation.
+     * @return id as int
      */
     public int getId() {
         return id;
     }
 
     /**
-     * Sets the primary key ID of the deviation.
-     * @param id the id to set.
+     * Sets the unique identifier for the deviation.
+     * @param id unique identifier
      */
     public void setId(int id) {
         this.id = id;
     }
 
     /**
-     * Gets the date of identification.
-     * @return dateOfIdentification as Date.
+     * Gets the date when the deviation was identified.
+     * @return identification date
      */
     public Date getDateOfIdentification() {
         return dateOfIdentification;
     }
 
     /**
-     * Sets the date of identification.
-     * @param dateOfIdentification the dateOfIdentification to set.
+     * Sets the date when the deviation was identified.
+     * @param dateOfIdentification date of identification
      */
     public void setDateOfIdentification(Date dateOfIdentification) {
         this.dateOfIdentification = dateOfIdentification;
     }
 
     /**
-     * Gets the date of occurrence.
-     * @return dateOfOccurrence as Date.
+     * Gets the date when the deviation occurred.
+     * @return occurrence date
      */
     public Date getDateOfOccurrence() {
         return dateOfOccurrence;
     }
 
     /**
-     * Sets the date of occurrence.
-     * @param dateOfOccurrence the dateOfOccurrence to set.
+     * Sets the date when the deviation occurred.
+     * @param dateOfOccurrence date of occurrence
      */
     public void setDateOfOccurrence(Date dateOfOccurrence) {
         this.dateOfOccurrence = dateOfOccurrence;
@@ -77,7 +70,7 @@ public class Deviation {
 
     /**
      * Gets the description of the deviation.
-     * @return description as String.
+     * @return deviation description
      */
     public String getDescription() {
         return description;
@@ -85,7 +78,7 @@ public class Deviation {
 
     /**
      * Sets the description of the deviation.
-     * @param description the description to set.
+     * @param description deviation description
      */
     public void setDescription(String description) {
         this.description = description;
@@ -93,7 +86,7 @@ public class Deviation {
 
     /**
      * Gets the deviation number.
-     * @return deviationNumber as String.
+     * @return deviation number
      */
     public String getDeviationNumber() {
         return deviationNumber;
@@ -101,7 +94,7 @@ public class Deviation {
 
     /**
      * Sets the deviation number.
-     * @param deviationNumber the deviationNumber to set.
+     * @param deviationNumber unique deviation code
      */
     public void setDeviationNumber(String deviationNumber) {
         this.deviationNumber = deviationNumber;
@@ -109,7 +102,7 @@ public class Deviation {
 
     /**
      * Gets the severity of the deviation.
-     * @return deviationSeverity as Enums.DeviationSeverity.
+     * @return deviation severity
      */
     public Enums.DeviationSeverity getDeviationSeverity() {
         return deviationSeverity;
@@ -117,7 +110,7 @@ public class Deviation {
 
     /**
      * Sets the severity of the deviation.
-     * @param deviationSeverity the deviationSeverity to set.
+     * @param deviationSeverity severity level
      */
     public void setDeviationSeverity(Enums.DeviationSeverity deviationSeverity) {
         this.deviationSeverity = deviationSeverity;
@@ -125,7 +118,7 @@ public class Deviation {
 
     /**
      * Gets the type of the deviation.
-     * @return deviationType as Enums.DeviationType.
+     * @return deviation type
      */
     public Enums.DeviationType getDeviationType() {
         return deviationType;
@@ -133,93 +126,92 @@ public class Deviation {
 
     /**
      * Sets the type of the deviation.
-     * @param deviationType the deviationType to set.
+     * @param deviationType type of deviation
      */
     public void setDeviationType(Enums.DeviationType deviationType) {
         this.deviationType = deviationType;
     }
 
     /**
-     * Gets additional remarks.
-     * @return remarks as String.
+     * Gets the remarks associated with the deviation.
+     * @return remarks
      */
     public String getRemarks() {
         return remarks;
     }
 
     /**
-     * Sets additional remarks.
-     * @param remarks the remarks to set.
+     * Sets the remarks associated with the deviation.
+     * @param remarks additional notes
      */
     public void setRemarks(String remarks) {
         this.remarks = remarks;
     }
 
     /**
-     * Gets the risk assessment details.
-     * @return riskAssessment as String.
+     * Gets the risk assessment of the deviation.
+     * @return risk assessment
      */
     public String getRiskAssessment() {
         return riskAssessment;
     }
 
     /**
-     * Sets the risk assessment details.
-     * @param riskAssessment the riskAssessment to set.
+     * Sets the risk assessment of the deviation.
+     * @param riskAssessment risk evaluation
      */
     public void setRiskAssessment(String riskAssessment) {
         this.riskAssessment = riskAssessment;
     }
 
     /**
-     * Gets the standard procedure related to the deviation.
-     * @return standardProcedure as String.
+     * Gets the standard procedure involved in the deviation.
+     * @return standard procedure
      */
     public String getStandardProcedure() {
         return standardProcedure;
     }
 
     /**
-     * Sets the standard procedure related to the deviation.
-     * @param standardProcedure the standardProcedure to set.
+     * Sets the standard procedure involved in the deviation.
+     * @param standardProcedure procedure name
      */
     public void setStandardProcedure(String standardProcedure) {
         this.standardProcedure = standardProcedure;
     }
 
     /**
-     * Gets the current status of the deviation.
-     * @return status as Enums.DeviationStatus.
+     * Gets the status of the deviation.
+     * @return deviation status
      */
     public Enums.DeviationStatus getStatus() {
         return status;
     }
 
     /**
-     * Sets the current status of the deviation.
-     * @param status the status to set.
+     * Sets the status of the deviation.
+     * @param status current status
      */
     public void setStatus(Enums.DeviationStatus status) {
         this.status = status;
     }
 
     /**
-     * Gets the timestamp of identification.
-     * @return timeOfIdentification as Timestamp.
+     * Gets the time of identification of the deviation.
+     * @return time of identification
      */
     public Timestamp getTimeOfIdentification() {
         return timeOfIdentification;
     }
 
     /**
-     * Sets the timestamp of identification.
-     * @param timeOfIdentification the timeOfIdentification to set.
+     * Sets the time of identification of the deviation.
+     * @param timeOfIdentification time stamp
      */
     public void setTimeOfIdentification(Timestamp timeOfIdentification) {
         this.timeOfIdentification = timeOfIdentification;
     }
 
-    // toString Method
     @Override
     public String toString() {
         return "Deviation{" +

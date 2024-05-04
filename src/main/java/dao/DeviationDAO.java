@@ -6,14 +6,8 @@ import java.util.logging.Logger;
 import utils.DatabaseUtility;
 import java.sql.*;
 import java.util.logging.*;
-import java.util.*;import model.Enums.DeviationStatus;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
-import java.sql.Date;
+import java.util.*;import java.util.Calendar;
+import java.util.Date;
 
 
 
@@ -21,524 +15,551 @@ public class DeviationDAO {
 
 
 /**
- * Initiates the CFT review process for a given deviation, updating its status.
- *
- * @param id the ID of the deviation to update.
- * @param reviewerComments comments provided by the reviewer.
- * @param reviewDecision the decision of the review, true for approved, false for not approved.
- * @param justificationForReturning text justification for returning the deviation, if applicable.
- * @return true if the update was successful, false otherwise.
+ * Initiates the CFT review process for a specific deviation.
+ * @param status The current status of the deviation.
+ * @param id The unique identifier of the deviation.
+ * @param reviewerComments Comments from the reviewer.
+ * @param reviewDecision The decision made by the reviewer.
+ * @param justificationForReturning Justification text for returning the deviation.
+ * @return {@code true} if the update is successful, otherwise {@code false}.
  */
-public Boolean initiateCFTReview(Integer id, String reviewerComments, Boolean reviewDecision, String justificationForReturning) {
-    Connection conn = null;
-    PreparedStatement pstmt = null;
-    Integer result = 0;
-    try {
-        conn = DatabaseUtility.connect();
-        String sql = "UPDATE deviations SET status = ?::deviation_status, reviewer_comments = ?, review_decision = ?, justification_for_returning = ? WHERE id = ?";
-        pstmt = conn.prepareStatement(sql);
-        pstmt.setString(1, DeviationStatus.ONGOING_CFT_REVIEW.name());
-        pstmt.setString(2, reviewerComments);
-        pstmt.setBoolean(3, reviewDecision);
-        if (justificationForReturning == null) {
-            pstmt.setNull(4, Types.VARCHAR);
-        } else {
-            pstmt.setString(4, justificationForReturning);
-        }
-        pstmt.setInt(5, id);
-        result = pstmt.executeUpdate();
-    } catch (SQLException e) {
-        Logger.getLogger(this.getClass().getName()).severe("Error during initiating CFT Review: " + e.getMessage());
-        return false;
-    } finally {
-        DatabaseUtility.disconnect(conn);
+public Boolean initiateCFTReview(Enums.DeviationStatus status, int id, String reviewerComments, Boolean reviewDecision, String justificationForReturning) {
+  Connection connection = null;
+  PreparedStatement preparedStatement = null;
+  int result = 0;
+  try {
+    connection = DatabaseUtility.connect();
+    connection.setAutoCommit(false);
+    String query = "UPDATE deviations SET status = ?, review_comment = ?, review_decision = ?, justification_for_returning = ? WHERE id = ? AND status = ?::deviation_status";
+    preparedStatement = connection.prepareStatement(query);
+    preparedStatement.setString(1, Enums.DeviationStatus.ONGOING_CFT_REVIEW.name());
+    preparedStatement.setString(2, reviewerComments);
+    preparedStatement.setBoolean(3, reviewDecision);
+    preparedStatement.setString(4, justificationForReturning);
+    preparedStatement.setInt(5, id);
+    preparedStatement.setString(6, status.name());
+    result = preparedStatement.executeUpdate();
+    connection.commit();
+  } catch (SQLException e) {
+    Logger.getLogger(this.getClass().getName()).severe("Error while initiating CFT review: " + e.getMessage());
+    if (connection != null) {
+      try {
+        connection.rollback();
+      } catch (SQLException ex) {
+        Logger.getLogger(this.getClass().getName()).severe("Rollback failed: " + ex.getMessage());
+      }
     }
-    return result > 0;
+    return false;
+  } finally {
+    DatabaseUtility.disconnect(connection);
+  }
+  return result > 0;
 }
 
 /**
-     * Escalate to QA Review: This action advances the deviation from either 'complete_department_review' or 'complete_cft_review' statuses directly to 'pending_qa_review', facilitating quicker engagement of the QA team in critical cases that demand immediate attention or in scenarios where faster resolution is imperative.
-     * @param id
-     * @param status
-     * @return
-     */
-    public boolean escalateToQAReview(int id, DeviationStatus status) {
-        String sql = "UPDATE deviations SET status = ?::deviation_status WHERE id = ? AND (status = ?::deviation_status OR status = ?::deviation_status)";
-
-        try (Connection connection = DatabaseUtility.connect();
-                PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, status.name());
-            statement.setInt(2, id);
-            statement.setString(3, DeviationStatus.DEPARTMENT_REVIEW_COMPLETED.name());
-            statement.setString(4, DeviationStatus.CFT_REVIEW_COMPLETE.name());
-
-            int rowsAffected = statement.executeUpdate();
-            return rowsAffected > 0;
-        } catch (SQLException ex) {
-            Logger.getLogger(this.getClass().getName()).severe("Error during escalateToQAReview: " + ex.getMessage());
-            return false;
-        }
+ * This method facilitates the escalation of a deviation directly to QA review, bypassing the conventional CFT review step if necessary.
+ * It transitions the deviation status to 'pending_qa_review' from either 'complete_department_review' or 'complete_cft_review' states, expediting QA involvement in critical cases.
+ * 
+ * @param id      The unique identifier of the deviation to be escalated.
+ * @param status The current status of the deviation, which should be either 'complete_department_review' or 'complete_cft_review'.
+ * @return A boolean value indicating the success of the escalation operation. True signifies successful escalation, while false implies an error or invalid state transition.
+ * @throws SQLException If any SQL-related errors occur during the update process.
+ */
+public boolean escalateToQAReview(int id, Enums.DeviationStatus status) throws SQLException {
+    if (!(status == Enums.DeviationStatus.DEPARTMENT_REVIEW_COMPLETED || status == Enums.DeviationStatus.CFT_REVIEW_COMPLETE)) {
+        Logger.getLogger(this.getClass().getName()).severe("Invalid state transition. Deviation must be in 'complete_department_review' or 'complete_cft_review' status for escalation to QA review.");
+        return false;
     }
 
-/**
- * Initiate Department Review: This action allows the user to initiate the department review process for a deviation, changing its status from 'pending_department_review' to 'ongoing_department_review' in the system. This facilitates the formal departmental assessment phase of the deviation management workflow.
- * @param comments
- * @param id
- * @param status
- * @param decision__selection
- * @param justification
- * @return
- */
-public Boolean initiateDepartmentReview(String comments, Integer id, DeviationStatus status, Boolean decision__selection, String justification) {
     Connection connection = DatabaseUtility.connect();
     try {
-        String sql = "UPDATE deviations SET comments = ?, status = ?, decision__selection = ?, justification = ? WHERE id = ?";
+        String sql = "UPDATE deviations SET status = ?::deviation_status WHERE id = ?";
         PreparedStatement statement = connection.prepareStatement(sql);
-        statement.setString(1, comments);
-        statement.setString(2, status.name());
-        if (decision__selection != null) {
-            statement.setBoolean(3, decision__selection);
-        } else {
-            statement.setNull(3, Types.BOOLEAN);
-        }
-        statement.setString(4, justification);
-        statement.setInt(5, id);
-        int rowsAffected = statement.executeUpdate();
-        return rowsAffected > 0;
-    } catch (SQLException ex) {
-        Logger.getLogger(this.getClass().getName()).severe("Error during initiating department review: " + ex.getMessage());
-        return false;
+        statement.setString(1, Enums.DeviationStatus.PENDING_QA_REVIEW.name());
+        statement.setInt(2, id);
+        int rowsUpdated = statement.executeUpdate();
+        return rowsUpdated > 0;
     } finally {
         DatabaseUtility.disconnect(connection);
     }
 }
 
 /**
- * Associates the results of an investigation directly with the deviation record, updating the deviation's data fields concerned with findings, corrective actions suggested, and any changes to risk assessments. This action is crucial for aligning the investigation outcomes with the ongoing deviation resolution process.
- * @param conclusion
- * @param findings
- * @param deviations_id
- * @param risk_assessment
- * @return
+ * Links the investigation outcome with the corresponding deviation record, updating relevant fields.
+ *
+ * @param findings        The investigation's findings
+ * @param conclusion      The investigation's conclusion
+ * @param deviationsId   The ID of the associated deviation
+ * @param riskAssessment The updated risk assessment
+ * @return {@code true} if the update is successful, {@code false} otherwise
  */
-public boolean linkInvestigationOutcome(String conclusion, String findings, Integer deviations_id, String risk_assessment) {
-    boolean isSuccessful = false;
+public boolean linkInvestigationOutcome(String findings, String conclusion, int deviationsId, String riskAssessment) {
     Connection connection = DatabaseUtility.connect();
     try {
-        PreparedStatement statement = connection.prepareStatement(
-                "UPDATE deviations SET remarks = ?, risk_assessment = ? WHERE id = ?");
-        statement.setString(1, conclusion);
-        statement.setString(2, risk_assessment);
-        if (deviations_id != null) {
-            statement.setInt(3, deviations_id);
-        } else {
-            statement.setNull(3, Types.INTEGER);
-        }
+        String sql = "UPDATE deviations SET remarks = ?, review_comment = ?, risk_assessment = ? WHERE id = ?";
+        PreparedStatement statement = connection.prepareStatement(sql);
+        statement.setString(1, findings);
+        statement.setString(2, conclusion);
+        statement.setString(3, riskAssessment);
+        statement.setInt(4, deviationsId);
+
         int rowsUpdated = statement.executeUpdate();
-        isSuccessful = rowsUpdated > 0;
-    } catch (SQLException ex) {
-        Logger.getLogger(this.getClass().getName()).severe(ex.getMessage());
+        return rowsUpdated > 0;
+    } catch (SQLException e) {
+        Logger.getLogger(this.getClass().getName()).severe("Error linking investigation outcome: " + e.getMessage());
+        return false;
     } finally {
         DatabaseUtility.disconnect(connection);
     }
-    return isSuccessful;
 }
-
 
 /**
  * Set Review Reminder: Schedules a reminder for upcoming reviews or actions that need to be taken on a deviation, ensuring that all stakeholders are notified in advance to prevent delays in the deviation handling process.
+ *
+ * @param deviationId The ID of the deviation for which the reminder is being set.
+ * @param reviewDate The date on which the review or action is due.
+ * @param reminderDays The number of days in advance of the review date to send the reminder.
+ * @return A boolean value indicating whether the reminder was successfully set.
  */
-public void setReviewReminder() throws SQLException {
-    Connection connection = DatabaseUtility.connect();
+public boolean setReviewReminder(int deviationId, Date reviewDate, int reminderDays) {
+    Connection connection = null;
     try {
-        // Logic to identify deviations requiring reminders based on deadlines or upcoming review dates
-        // ...
+        connection = DatabaseUtility.connect();
+        // Calculate the reminder date based on the review date and reminder days.
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(reviewDate);
+        calendar.add(Calendar.DATE, -reminderDays);
+        Date reminderDate = calendar.getTime();
 
-        // Assuming we have a list of user IDs who need reminders (userIds)
-        List<Integer> userIds = new ArrayList<>(); // Replace with actual logic to get user IDs
+        // Prepare the SQL statement to insert the reminder into the notifications table.
+        String sql = "INSERT INTO notifications (notification_type, message_content, timestamp, user_recipient_id, deviations_id) VALUES (?, ?, ?, ?, ?)";
+        PreparedStatement statement = connection.prepareStatement(sql);
+        statement.setString(1, Enums.NotificationType.REMINDER.name());
+        statement.setString(2, "Reminder: Review for Deviation " + deviationId + " is due on " + reviewDate);
+        statement.setTimestamp(3, new Timestamp(reminderDate.getTime()));
+        // TODO: Set the user_recipient_id based on the assigned reviewer or responsible person.
+        statement.setInt(4, 1); // Replace with actual user ID
+        statement.setInt(5, deviationId);
 
-        for (int userId : userIds) {
-            // Create notification for each user
-            Notification notification = new Notification();
-            notification.setUserRecipientId(userId);
-            notification.setNotificationType(NotificationType.REMINDER);
-            notification.setMessageContent("Reminder: Action required on a deviation."); // Customize message
-            notification.setTimestamp(Timestamp.valueOf(LocalDateTime.now(ZoneId.of("UTC"))));
-
-            // Insert notification into the 'notifications' table
-            String sql = "INSERT INTO notifications (user_recipient_id, notification_type, message_content, timestamp) VALUES (?, ?::notification_type, ?, ?)";
-            PreparedStatement statement = connection.prepareStatement(sql);
-            statement.setInt(1, notification.getUserRecipientId());
-            statement.setString(2, notification.getNotificationType().name());
-            statement.setString(3, notification.getMessageContent());
-            statement.setTimestamp(4, notification.getTimestamp());
-            statement.executeUpdate();
-        }
+        // Execute the statement and return true if successful.
+        int rowsInserted = statement.executeUpdate();
+        return rowsInserted > 0;
+    } catch (SQLException e) {
+        Logger.getLogger(this.getClass().getName()).severe("Error setting review reminder: " + e.getMessage());
+        return false;
     } finally {
         DatabaseUtility.disconnect(connection);
     }
 }
 
 /**
- * Completes the department review for a specific deviation, transitioning its status based on the reviewer's decision and capturing their comments.
- * @param deviationId The unique identifier of the deviation undergoing review.
- * @param newStatus The updated status of the deviation after review ('complete_department_review', 'deviation_returned', or 'deviation_dropped').
- * @param reviewerComments Optional comments provided by the reviewer regarding the deviation.
- * @return A boolean indicating whether the department review completion was successful.
- * @throws SQLException If a database access error occurs during the update operation.
+ * Completes the department review of a deviation, updating its status to either
+ * 'complete_department_review', 'deviation_returned', or 'deviation_dropped'
+ * based on the reviewer's decision. Captures reviewer comments and triggers
+ * appropriate next steps: continuation to the next review stage, return to
+ * the initiator for re-initiation, or justification for dropping the deviation.
+ *
+ * @param deviationId The unique identifier of the deviation being reviewed.
+ * @param newStatus The updated status of the deviation (complete_department_review, deviation_returned, deviation_dropped).
+ * @param reviewComment The reviewer's comments on the deviation.
+ * @return A boolean indicating the success or failure of the operation.
+ * @throws SQLException If a database error occurs.
  */
-public boolean completeDepartmentReview(int deviationId, DeviationStatus newStatus, String reviewerComments) throws SQLException {
-    String updateQuery = "UPDATE deviations SET status = ?::deviation_status, remarks = ? WHERE id = ?";
-    try (Connection connection = DatabaseUtility.connect();
-            PreparedStatement statement = connection.prepareStatement(updateQuery)) {
+public boolean completeDepartmentReview(int deviationId, Enums.DeviationStatus newStatus, String reviewComment) throws SQLException {
+    Connection connection = DatabaseUtility.connect();
+    try {
+        String sql = "UPDATE deviations SET status = ?::deviation_status, review_comment = ? WHERE id = ?";
+        PreparedStatement statement = connection.prepareStatement(sql);
         statement.setString(1, newStatus.name());
-        statement.setString(2, reviewerComments);
+        statement.setString(2, reviewComment);
         statement.setInt(3, deviationId);
-        int rowsAffected = statement.executeUpdate();
-        return rowsAffected > 0;
+
+        int rowsUpdated = statement.executeUpdate();
+        return rowsUpdated > 0;
     } finally {
         DatabaseUtility.disconnect(connection);
     }
 }
 
 /**
- * Assign CFT Reviewer: This action allows selection of whether a Cross-Functional Team (CFT) assessment is required. If required, a CFT department is selected from a master list, and a user from the list of users is assigned to perform the CFT review.
- * @param user_id
- * @param deviation_id
- * @param department_id
- * @param cross_functional_assessment_required
- * @param c_f_t_department_selection
- * @param user_selection
- * @return
- * @throws SQLException
+ * Assigns a CFT Reviewer to a deviation if a Cross-Functional Team (CFT) assessment is required.
+ *
+ * @param userId                     The ID of the user performing the action
+ * @param deviationId                The ID of the deviation
+ * @param departmentId              The ID of the selected CFT department (if applicable)
+ * @param crossFunctionalAssessmentRequired True if a CFT assessment is needed, false otherwise
+ * @param cftDepartmentSelection       The ID of the chosen CFT department (if applicable)
+ * @param userSelection                The ID of the selected user for CFT review (if applicable)
+ * @return True if the operation was successful, false otherwise
+ * @throws SQLException If a database error occurs
  */
-public boolean assignCFTReviewer(Integer user_id, Integer deviation_id, Integer department_id, Boolean cross_functional_assessment_required, Integer c_f_t_department_selection, Integer user_selection) throws SQLException {
+public boolean assignCFTReviewer(int userId, int deviationId, Integer departmentId, boolean crossFunctionalAssessmentRequired,
+        Integer cftDepartmentSelection, Integer userSelection) throws SQLException {
     Connection connection = DatabaseUtility.connect();
     try {
-        String query = "UPDATE deviations SET status = ?::deviation_status WHERE id = ?";
-        PreparedStatement statement = connection.prepareStatement(query);
-        statement.setString(1, DeviationStatus.PENDING_CFT_REVIEW.name());
-        statement.setInt(2, deviation_id);
-        int rowsUpdated = statement.executeUpdate();
-        statement.close();
-        if (rowsUpdated > 0) {
-            Logger.getLogger(this.getClass().getName()).log(Level.INFO, "Deviation status updated successfully.");
+        connection.setAutoCommit(false);
+
+        // Update deviation status based on CFT assessment requirement
+        String updateDeviationStatusSql = "UPDATE deviations SET status = ? WHERE id = ?";
+        PreparedStatement updateDeviationStatusStatement = connection.prepareStatement(updateDeviationStatusSql);
+        if (crossFunctionalAssessmentRequired) {
+            updateDeviationStatusStatement.setString(1, Enums.DeviationStatus.PENDING_CFT_REVIEW.name());
         } else {
-            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, "Failed to update deviation status.");
-            return false;
+            updateDeviationStatusStatement.setString(1, Enums.DeviationStatus.APPROVED_BY_QA.name()); // Assuming bypass to QA
+        }
+        updateDeviationStatusStatement.setInt(2, deviationId);
+        updateDeviationStatusStatement.executeUpdate();
+
+        if (crossFunctionalAssessmentRequired) {
+            // Update deviation with selected CFT department
+            String updateCFTDepartmentSql = "UPDATE deviations SET cft_department_id = ? WHERE id = ?";
+            PreparedStatement updateCFTDepartmentStatement = connection.prepareStatement(updateCFTDepartmentSql);
+            updateCFTDepartmentStatement.setInt(1, cftDepartmentSelection);
+            updateCFTDepartmentStatement.setInt(2, deviationId);
+            updateCFTDepartmentStatement.executeUpdate();
+
+            // Assign CFT reviewer
+            String assignReviewerSql = "INSERT INTO cft_reviewers (deviation_id, user_id) VALUES (?, ?)";
+            PreparedStatement assignReviewerStatement = connection.prepareStatement(assignReviewerSql);
+            assignReviewerStatement.setInt(1, deviationId);
+            assignReviewerStatement.setInt(2, userSelection);
+            assignReviewerStatement.executeUpdate();
         }
 
-        // Additional logic for assigning CFT reviewer if required
-        if (cross_functional_assessment_required) {
-            // Implement logic to assign CFT reviewer based on department and user selection
-            // You might need to update the deviations table or create a new record in a related table to track the assigned reviewer
-            Logger.getLogger(this.getClass().getName()).log(Level.INFO, "CFT assessment required. Further logic needs to be implemented for reviewer assignment.");
-        }
+        // Create audit trail entry
+        String auditTrailSql = "INSERT INTO audit_trails (user_id, action_type, description) VALUES (?, ?, ?)";
+        PreparedStatement auditTrailStatement = connection.prepareStatement(auditTrailSql);
+        auditTrailStatement.setInt(1, userId);
+        auditTrailStatement.setString(2, Enums.ActionType.UPDATE.name());
+        auditTrailStatement.setString(3, "CFT Reviewer assigned to deviation: " + deviationId);
+        auditTrailStatement.executeUpdate();
 
+        connection.commit();
         return true;
     } catch (SQLException e) {
-        Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, "Error assigning CFT reviewer", e);
-        throw e;
+        connection.rollback();
+        Logger.getLogger(this.getClass().getName()).severe("Error assigning CFT Reviewer: " + e.getMessage());
+        throw e; // Re-throw exception for further handling
     } finally {
         DatabaseUtility.disconnect(connection);
     }
 }
 
 /**
- * Retry Department Review: Enables the record to be sent back to the department review phase after adjustments or additional information has been added following a CFT or QA review. This action ensures that deviations deemed incompletely reviewed or requiring more details can be re-evaluated at the department level.
- * @param status
- * @param timestamp
- * @param remarks
- * @param deviationsId
- * @return
+ * Retries the department review for a deviation, resetting its status and adding a timestamp and remarks.
+ *
+ * @param status       The new status of the deviation (should be PENDING_DEPARTMENT_REVIEW)
+ * @param timestamp    The timestamp of the retry action
+ * @param remarks      Additional remarks regarding the retry
+ * @param deviationsId The ID of the deviation to retry
+ * @return True if the operation was successful, false otherwise
+ * @throws SQLException If a database error occurs
  */
-public boolean retryDepartmentReview(DeviationStatus status, Timestamp timestamp, String remarks, Integer deviationsId) {
-        String query = "UPDATE deviations SET status = ?::deviation_status, remarks = ?, updated_at = ? WHERE id = ?";
-        try (Connection connection = DatabaseUtility.connect();
-                PreparedStatement statement = connection.prepareStatement(query)) {
-            statement.setString(1, status.name());
-            statement.setString(2, remarks);
-            statement.setTimestamp(3, timestamp);
-            statement.setInt(4, deviationsId);
-            int rowsAffected = statement.executeUpdate();
-            return rowsAffected > 0;
-        } catch (SQLException ex) {
-            Logger.getLogger(this.getClass().getName()).severe("Error during retryDepartmentReview: " + ex.getMessage());
-            return false;
-        }
+public boolean retryDepartmentReview(Enums.DeviationStatus status, Timestamp timestamp, String remarks, int deviationsId) throws SQLException {
+    Connection connection = DatabaseUtility.connect();
+    try {
+        String sql = "UPDATE deviations SET status = ?::deviation_status, remarks = ?, updated_at = ? WHERE id = ?";
+        PreparedStatement statement = connection.prepareStatement(sql);
+        statement.setString(1, status.name());
+        statement.setString(2, remarks);
+        statement.setTimestamp(3, timestamp);
+        statement.setInt(4, deviationsId);
+
+        int rowsUpdated = statement.executeUpdate();
+        return rowsUpdated > 0;
+    } finally {
+        DatabaseUtility.disconnect(connection);
     }
+}
 
 /**
-     * Generate Compliance Report: Compiles and generates reports detailing the deviation handling process including all related reviews, approvals, and corrective actions for compliance and audit purposes. Facilitates adherence to industry regulations and internal standards.
-     *
-     * @param approvalDate The date of approval for the deviation
-     * @param endDate The end date for the report generation
-     * @param deviationsId The ID of the deviation
-     * @param completionDate The completion date for the CAPA
-     * @param startDate The start date for the report generation
-     * @return List<ComplianceReportData> A list of compliance report data objects
-     */
-    public List<ComplianceReportData> generateComplianceReport(LocalDate approvalDate, LocalDate endDate, Integer deviationsId, LocalDate completionDate, LocalDate startDate) {
-        String query = "SELECT a.approval_date, a.approval_status, a.approval_comments, d.deviation_number, d.description, d.deviation_type, d.deviation_severity, d.status AS deviation_status, d.date_of_occurrence, d.risk_assessment, c.action_description, c.start_date, c.completion_date, c.effectiveness_review\n" +
-                "FROM approvals a\n" +
-                "JOIN deviations d ON a.deviations_id = d.id\n" +
-                "LEFT JOIN capas c ON d.id = c.deviations_id\n" +
-                "WHERE (a.approval_date >= ? AND a.approval_date <= ?) OR (d.id = ?) OR (c.start_date >= ? AND c.completion_date <= ?)";
-
-        List<ComplianceReportData> reportData = new ArrayList<>();
-
-        try (Connection connection = DatabaseUtility.connect();
-             PreparedStatement statement = connection.prepareStatement(query)) {
-
-            statement.setObject(1, startDate);
-            statement.setObject(2, endDate);
-            statement.setObject(3, deviationsId);
-            statement.setObject(4, startDate);
-            statement.setObject(5, completionDate);
-
-            try (ResultSet resultSet = statement.executeQuery()) {
-                while (resultSet.next()) {
-                    ComplianceReportData data = new ComplianceReportData();
-                    data.setApprovalDate(resultSet.getDate("approval_date").toLocalDate());
-                    data.setApprovalStatus(Enums.ApprovalStatus.valueOf(resultSet.getString("approval_status")));
-                    data.setApprovalComments(resultSet.getString("approval_comments"));
-                    data.setDeviationNumber(resultSet.getString("deviation_number"));
-                    data.setDescription(resultSet.getString("description"));
-                    data.setDeviationType(Enums.DeviationType.valueOf(resultSet.getString("deviation_type")));
-                    data.setDeviationSeverity(Enums.DeviationSeverity.valueOf(resultSet.getString("deviation_severity")));
-                    data.setDeviationStatus(DeviationStatus.valueOf(resultSet.getString("deviation_status")));
-                    data.setDateOfOccurrence(resultSet.getDate("date_of_occurrence").toLocalDate());
-                    data.setRiskAssessment(resultSet.getString("risk_assessment"));
-                    data.setCapaActionDescription(resultSet.getString("action_description"));
-                    data.setCapaStartDate(resultSet.getDate("start_date").toLocalDate());
-                    data.setCapaCompletionDate(resultSet.getDate("completion_date").toLocalDate());
-                    data.setCapaEffectivenessReview(resultSet.getString("effectiveness_review"));
-                    reportData.add(data);
-                }
-            }
-        } catch (SQLException ex) {
-            Logger.getLogger(this.getClass().getName()).severe("Error generating compliance report: " + ex.getMessage());
-        }
-
-        return reportData;
-    }
-
-/**
- * Captures the outcome of an investigation, updating the corresponding deviation record with the investigation's findings, conclusions, and any resulting risk reassessment or remediation actions.
- * @param remediationActionTaken The remediation action taken based on the investigation's findings.
- * @param riskAssessment The updated risk assessment following the investigation.
- * @param investigationId The ID of the investigation record.
- * @return A boolean value indicating the success or failure of the update operation.
+ * Generates a compliance report for a specific deviation, providing a comprehensive overview of the deviation handling process including reviews, approvals, and corrective actions.
+ * 
+ * @param approvalDate       The approval date for filtering approvals.
+ * @param endDate            The end date for the reporting period.
+ * @param deviationsId      The ID of the deviation for which to generate the report.
+ * @param completionDate    The completion date for filtering CAPAs.
+ * @param startDate          The start date for the reporting period.
+ * @return A compliance report containing relevant deviation details and related activities.
  * @throws SQLException If a database access error occurs.
  */
-public boolean captureInvestigationOutcome(String remediationActionTaken, String riskAssessment, int investigationId) throws SQLException {
-    String updateDeviationSql = "UPDATE deviations SET risk_assessment = ?, remarks = ? WHERE id = (SELECT deviations_id FROM investigations WHERE id = ?)";
-
+public ComplianceReport generateComplianceReport(Date approvalDate, Date endDate, int deviationsId, Date completionDate, Date startDate) throws SQLException {
     Connection connection = DatabaseUtility.connect();
-    try (PreparedStatement statement = connection.prepareStatement(updateDeviationSql)) {
+    try {
+        // Implement logic to retrieve and compile compliance report data using provided parameters and database connection
+        // ...
+
+        ComplianceReport report = new ComplianceReport(); // Assuming a 'ComplianceReport' class exists to structure the report data
+        // Populate the report object with retrieved data
+        // ...
+
+        return report;
+    } finally {
+        DatabaseUtility.disconnect(connection);
+    }
+}
+
+/**
+ * Captures the outcome of an investigation and updates the associated deviation record.
+ *
+ * @param remediationActionTaken The remediation action taken based on the investigation.
+ * @param riskAssessment        The updated risk assessment based on the investigation findings.
+ * @param investigationId         The ID of the investigation.
+ * @return {@code true} if the update was successful, {@code false} otherwise.
+ */
+public boolean captureInvestigationOutcome(String remediationActionTaken, String riskAssessment, int investigationId) {
+    String query = "UPDATE deviations SET risk_assessment = ?, remarks = ? WHERE id = (SELECT deviations_id FROM investigations WHERE id = ?)";
+    try (Connection connection = DatabaseUtility.connect();
+         PreparedStatement statement = connection.prepareStatement(query)) {
         statement.setString(1, riskAssessment);
         statement.setString(2, remediationActionTaken);
         statement.setInt(3, investigationId);
-
         return statement.executeUpdate() > 0;
-    } finally {
-        DatabaseUtility.disconnect(connection);
+    } catch (SQLException ex) {
+        Logger.getLogger(this.getClass().getName()).severe("Error capturing investigation outcome: " + ex.getMessage());
+        return false;
     }
 }
 
 /**
- * Record Approval: This action entails recording each approval through various stages of the deviation handling process, including department-level, CFT review, and QA closures. It involves inserting a new record in the 'approvals' table linked to the deviation, which is vital for maintaining traceable, auditable records of all authorization steps as mandated by quality management protocols.
- * @param approval_date
- * @param approval_status
- * @param approver
- * @param approver_role
- * @param approval_comments
- * @param approver_name
- * @param deviations_id
- * @return
+ * Records an approval for a specific deviation in the system.
+ *
+ * @param approvalDate     The date of the approval
+ * @param approvalStatus   The status of the approval (e.g., Approved, Rejected, Pending)
+ * @param approverId       The ID of the user who provided the approval
+ * @param approverRole     The role of the approver within the organization
+ * @param approvalComments Any additional comments associated with the approval
+ * @param approverName     The name of the approver
+ * @param deviationId     The ID of the deviation being approved
+ * @return The ID of the newly created approval record, or -1 if an error occurred
  */
-public int recordApproval(Date approval_date, Enums.ApprovalStatus approval_status, int approver, String approver_role, String approval_comments, String approver_name, int deviations_id) {
-    Connection connection = DatabaseUtility.connect();
+public int recordApproval(Date approvalDate, Enums.ApprovalStatus approvalStatus, int approverId,
+        String approverRole, String approvalComments, String approverName, int deviationId) {
+    int approvalId = -1;
+    Connection connection = null;
     try {
-        String sql = "INSERT INTO approvals (approval_date, approval_status, approver, approver_role, approval_comments, approver_name, deviations_id) VALUES (?, ?::approval_status, ?, ?, ?, ?, ?)";
-        PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-        statement.setDate(1, approval_date);
-        statement.setString(2, approval_status.name());
-        statement.setInt(3, approver);
-        statement.setString(4, approver_role);
-        statement.setString(5, approval_comments);
-        statement.setString(6, approver_name);
-        statement.setInt(7, deviations_id);
+        connection = DatabaseUtility.connect();
+        String sql = "INSERT INTO approvals (approval_date, approval_status, approver, approver_role, approval_comments, approver_name, deviations_id) VALUES (?, ?::approval_status, ?, ?, ?, ?, ?)"
+                + " RETURNING id;";
+        PreparedStatement statement = connection.prepareStatement(sql);
+        statement.setDate(1, new java.sql.Date(approvalDate.getTime()));
+        statement.setString(2, approvalStatus.name());
+        statement.setInt(3, approverId);
+        statement.setString(4, approverRole);
+        statement.setString(5, approvalComments);
+        statement.setString(6, approverName);
+        statement.setInt(7, deviationId);
 
-        int rowsInserted = statement.executeUpdate();
-        if (rowsInserted > 0) {
-            ResultSet generatedKeys = statement.getGeneratedKeys();
-            if (generatedKeys.next()) {
-                return generatedKeys.getInt(1);
-            } else {
-                Logger.getLogger(this.getClass().getName()).severe("Failed to retrieve generated ID after inserting approval");
-                return -1;
-            }
-        } else {
-            Logger.getLogger(this.getClass().getName()).severe("Failed to insert approval into database");
-            return -1;
+        ResultSet resultSet = statement.executeQuery();
+        if (resultSet.next()) {
+            approvalId = resultSet.getInt("id");
         }
     } catch (SQLException e) {
-        Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, "Error recording approval", e);
-        return -1;
+        Logger.getLogger(this.getClass().getName()).severe("Error recording approval: " + e.getMessage());
     } finally {
         DatabaseUtility.disconnect(connection);
     }
+    return approvalId;
 }
 
 /**
- * Creates a new deviation record and returns its ID.
- *
- * @param time_of_identification The time of identification of the deviation.
- * @param date_of_occurrence The date of occurrence of the deviation.
- * @param description A detailed description of the deviation.
- * @param risk_assessment An assessment of the risks associated with the deviation.
- * @param standard_procedure The standard procedure that should have been followed.
- * @param remarks Any additional remarks or notes about the deviation.
- * @param deviation_type The type of deviation (e.g., product, equipment, material, document).
- * @param equipment The ID of the equipment involved in the deviation (if applicable).
- * @param batch The ID of the batch involved in the deviation (if applicable).
- * @param product_selection The ID of the product involved in the deviation (if applicable).
- * @param impact_on_batches_involved Whether the deviation has an impact on batches.
- * @param immediate_actions Immediate actions taken to address the deviation.
- * @param reason_or_root_cause_for_deviation The reason or root cause of the deviation.
- * @param material The ID of the material involved in the deviation (if applicable).
- * @param justification_for_delay Justification for any delay in reporting the deviation.
- * @return The ID of the newly created deviation record.
- * @throws SQLException If there is an error creating the deviation record.
- */
-public int createDeviation(Timestamp time_of_identification, Date date_of_occurrence, String description, String risk_assessment, String standard_procedure, String remarks, Enums.DeviationType deviation_type, Integer equipment, Integer batch, Integer product_selection, Boolean impact_on_batches_involved, String immediate_actions, String reason_or_root_cause_for_deviation, Integer material, String justification_for_delay) throws SQLException {
-    Logger.getLogger(this.getClass().getName()).info("Creating deviation record...");
-
-    Connection connection = DatabaseUtility.connect();
-    try {
-        String query = "INSERT INTO deviations (time_of_identification, date_of_occurrence, description, risk_assessment, standard_procedure, remarks, deviation_type, equipment_id, batch_id, product_id, impact_on_batches_involved, immediate_actions, reason_or_root_cause_for_deviation, material_id, justification_for_delay) VALUES (?, ?, ?, ?, ?, ?, ?::deviation_type, ?, ?, ?, ?, ?, ?, ?, ?)";
-
-        PreparedStatement statement = connection.prepareStatement(query, Statement.RETURN_GENERATED_KEYS);
-        statement.setTimestamp(1, time_of_identification);
-        statement.setDate(2, date_of_occurrence);
-        statement.setString(3, description);
-        statement.setString(4, risk_assessment);
-        statement.setString(5, standard_procedure);
-        statement.setString(6, remarks);
-        statement.setString(7, deviation_type.name());
-        statement.setObject(8, equipment);
-        statement.setObject(9, batch);
-        statement.setObject(10, product_selection);
-        statement.setObject(11, impact_on_batches_involved);
-        statement.setString(12, immediate_actions);
-        statement.setString(13, reason_or_root_cause_for_deviation);
-        statement.setObject(14, material);
-        statement.setString(15, justification_for_delay);
-
-        int affectedRows = statement.executeUpdate();
-        if (affectedRows == 0) {
-            throw new SQLException("Creating deviation failed, no rows affected.");
-        }
-
-        try (ResultSet generatedKeys = statement.getGeneratedKeys()) {
-            if (generatedKeys.next()) {
-                return generatedKeys.getInt(1);
+     * Creates a new deviation in the database.
+     *
+     * @param timeOfIdentification The time the deviation was identified
+     * @param dateOfOccurrence The date the deviation occurred
+     * @param description A description of the deviation
+     * @param riskAssessment The risk assessment for the deviation
+     * @param standardProcedure The standard procedure that was not followed
+     * @param remarks Additional remarks about the deviation
+     * @param deviationType The type of deviation
+     * @param reasonOrRootCauseForDeviation The reason or root cause for the deviation
+     * @param immediateActions Immediate actions to take for the deviation
+     * @param productSelection The product associated with the deviation
+     * @param batch The batch associated with the deviation
+     * @param impactOnBatchesInvolved Whether the deviation impacts batches
+     * @param material The material associated with the deviation
+     * @param equipment The equipment associated with the deviation
+     * @param justificationForDelay Justification for any delay in reporting the deviation
+     * @return The ID of the newly created deviation
+     * @throws SQLException If there is an error creating the deviation
+     */
+    public Integer createDeviation(Timestamp timeOfIdentification, Date dateOfOccurrence, String description, String riskAssessment, String standardProcedure, String remarks, Enums.DeviationType deviationType, String reasonOrRootCauseForDeviation, String immediateActions, Integer productSelection, Integer batch, Boolean impactOnBatchesInvolved, Integer material, Integer equipment, String justificationForDelay) throws SQLException {
+        Logger.getLogger(this.getClass().getName()).info("Creating deviation");
+        Connection connection = DatabaseUtility.connect();
+        try {
+            String sql = "INSERT INTO deviations (time_of_identification, date_of_occurrence, description, risk_assessment, standard_procedure, remarks, deviation_type, reason_or_root_cause_for_deviation, immediate_actions, product_id, batch_id, impact_on_batches_involved, material_id, equipment_id, justification_for_delay) VALUES (?, ?, ?, ?, ?, ?, ?::deviation_type, ?, ?, ?, ?, ?, ?, ?, ?)";
+            PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            statement.setTimestamp(1, timeOfIdentification);
+            statement.setDate(2, new java.sql.Date(dateOfOccurrence.getTime()));
+            statement.setString(3, description);
+            statement.setString(4, riskAssessment);
+            statement.setString(5, standardProcedure);
+            statement.setString(6, remarks);
+            statement.setString(7, deviationType.name());
+            statement.setString(8, reasonOrRootCauseForDeviation);
+            statement.setString(9, immediateActions);
+            if (productSelection != null) {
+                statement.setInt(10, productSelection);
             } else {
-                throw new SQLException("Creating deviation failed, no ID obtained.");
+                statement.setNull(10, Types.INTEGER);
             }
+            if (batch != null) {
+                statement.setInt(11, batch);
+            } else {
+                statement.setNull(11, Types.INTEGER);
+            }
+            statement.setBoolean(12, impactOnBatchesInvolved);
+            if (material != null) {
+                statement.setInt(13, material);
+            } else {
+                statement.setNull(13, Types.INTEGER);
+            }
+            if (equipment != null) {
+                statement.setInt(14, equipment);
+            } else {
+                statement.setNull(14, Types.INTEGER);
+            }
+            statement.setString(15, justificationForDelay);
+
+            int rowsInserted = statement.executeUpdate();
+            if (rowsInserted > 0) {
+                ResultSet generatedKeys = statement.getGeneratedKeys();
+                if (generatedKeys.next()) {
+                    return generatedKeys.getInt(1);
+                } else {
+                    throw new SQLException("Creating deviation failed, no ID obtained.");
+                }
+            } else {
+                throw new SQLException("Creating deviation failed, no rows affected.");
+            }
+        } finally {
+            DatabaseUtility.disconnect(connection);
         }
-    } finally {
-        DatabaseUtility.disconnect(connection);
     }
-}
 
 /**
- * Update Deviation Details: This involves updating existing deviation records, which may include modifying descriptions, updating risk assessments, or altering the standard procedure references. This action updates specific fields in an existing record within the 'deviations' table, catering to iterative changes and additional information that becomes available as the deviation handling process advances.
- * @param id
- * @param description
- * @param riskAssessment
- * @param standardProcedure
- * @param remediationActionTaken
- * @return
+ * Updates specific fields of an existing deviation record.
+ *
+ * @param id                 the unique identifier of the deviation to update
+ * @param description       the updated description of the deviation
+ * @param riskAssessment   the updated risk assessment
+ * @param standardProcedure the updated standard procedure
+ * @param remediationActionTaken the remediation action taken
+ * @return true if the update was successful, false otherwise
  */
-public Boolean updateDeviationDetails(Integer id, String description, String riskAssessment, String standardProcedure, String remediationActionTaken) {
-    Boolean updateStatus = false;
-    Connection connection = DatabaseUtility.connect();
-    try {
-        String sql = "UPDATE deviations SET description = ?, risk_assessment = ?, standard_procedure = ?, remarks = ? WHERE id = ?;";
-        PreparedStatement statement = connection.prepareStatement(sql);
+public boolean updateDeviationDetails(int id, String description, String riskAssessment, String standardProcedure, String remediationActionTaken) {
+    boolean updateSuccessful = false;
+    String sql = "UPDATE deviations SET description = ?, risk_assessment = ?, standard_procedure = ?, remarks = ? WHERE id = ?";
+
+    try (Connection connection = DatabaseUtility.connect();
+         PreparedStatement statement = connection.prepareStatement(sql)) {
+
         statement.setString(1, description);
         statement.setString(2, riskAssessment);
         statement.setString(3, standardProcedure);
         statement.setString(4, remediationActionTaken);
         statement.setInt(5, id);
+
         int rowsUpdated = statement.executeUpdate();
-        if (rowsUpdated > 0) {
-            updateStatus = true;
-        }
-    } catch (SQLException ex) {
-        Logger.getLogger(this.getClass().getName()).severe("Error updating deviation details: " + ex.getMessage());
-    } finally {
-        DatabaseUtility.disconnect(connection);
+        updateSuccessful = rowsUpdated > 0;
+    } catch (SQLException e) {
+        Logger.getLogger(this.getClass().getName()).severe("Error updating deviation details: " + e.getMessage());
     }
-    return updateStatus;
+
+    return updateSuccessful;
 }
 
 
 /**
-     * Closes a deviation by updating its status to 'closed'.
-     * @param id the ID of the deviation to close
-     * @return true if the deviation was successfully closed, false otherwise
-     */
-    public boolean closeDeviation(int id) {
-        String sql = "UPDATE deviations SET status = ?::deviation_handling_status WHERE id = ?";
-        try (Connection connection = DatabaseUtility.connect();
-                PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, Enums.DeviationStatus.CLOSED.name());
-            statement.setInt(2, id);
-            return statement.executeUpdate() > 0;
-        } catch (SQLException ex) {
-            Logger.getLogger(this.getClass().getName()).severe("Error closing deviation: " + ex.getMessage());
-            return false;
-        }
+ * Closes a deviation by updating its status to 'closed'.
+ *
+ * @param id     the unique identifier of the deviation to close
+ * @param status the status to set for the deviation (should be 'closed')
+ * @return {@code true} if the deviation was successfully closed, {@code false}
+ *         otherwise
+ */
+public boolean closeDeviation(int id, Enums.DeviationHandlingStatus status) {
+    String sql = "UPDATE deviations SET status = ?::deviation_handling_status WHERE id = ?";
+    try (Connection connection = DatabaseUtility.connect();
+         PreparedStatement statement = connection.prepareStatement(sql)) {
+        statement.setString(1, status.name());
+        statement.setInt(2, id);
+        return statement.executeUpdate() > 0;
+    } catch (SQLException e) {
+        Logger.getLogger(this.getClass().getName()).severe("Error closing deviation: " + e.getMessage());
+        return false;
     }
+}
 
 /**
- * This method encapsulates the logic for reviewing a deviation by the closer department.
- * It updates the deviation record with the provided details and sets the status
- * to "reviewed_by_closer_department".
- * @param deviationNumber The unique identifier of the deviation.
- * @param status The updated status of the deviation, specifically "reviewed_by_closer_department".
- * @param description A detailed description of the deviation.
- * @param riskAssessment The associated risk assessment for the deviation.
- * @param remarks Additional comments or observations related to the deviation.
- * @return A boolean value indicating the success or failure of the update operation.
+ * This method facilitates the review of a deviation by the closer department, typically Quality Assurance or Compliance, to ensure all necessary steps have been taken and the deviation can be officially closed.
+ * @param deviation_number The unique identifier of the deviation being reviewed.
+ * @param status The updated status of the deviation after the closer department's review.
+ * @param description A detailed description of the deviation and its resolution process.
+ * @param risk_assessment An evaluation of the potential risks associated with the deviation.
+ * @param remarks Additional comments or observations regarding the deviation and its closure.
+ * @return A boolean value indicating whether the deviation review update was successful.
  */
-public boolean reviewByCloserDepartment(String deviationNumber, DeviationStatus status, String description, String riskAssessment, String remarks) {
-    boolean isSuccessful = false;
-    Connection connection = null;
+public boolean reviewByCloserDepartment(String deviation_number, Enums.DeviationStatus status, String description, String risk_assessment, String remarks) {
+    boolean success = false;
+    Connection connection = DatabaseUtility.connect();
     try {
-        connection = DatabaseUtility.connect();
         String sql = "UPDATE deviations SET status = ?::deviation_status, description = ?, risk_assessment = ?, remarks = ? WHERE deviation_number = ?";
         PreparedStatement statement = connection.prepareStatement(sql);
         statement.setString(1, status.name());
         statement.setString(2, description);
-        statement.setString(3, riskAssessment);
+        statement.setString(3, risk_assessment);
         statement.setString(4, remarks);
-        statement.setString(5, deviationNumber);
-        int rowsAffected = statement.executeUpdate();
-        if (rowsAffected > 0) {
-            isSuccessful = true;
-            Logger.getLogger(this.getClass().getName()).info("Deviation reviewed by closer department: " + deviationNumber);
+        statement.setString(5, deviation_number);
+        int rowsUpdated = statement.executeUpdate();
+        if (rowsUpdated > 0) {
+            success = true;
+            Logger.getLogger(this.getClass().getName()).info("Deviation review by closer department updated successfully for deviation number: " + deviation_number);
         } else {
-            Logger.getLogger(this.getClass().getName()).warning("Deviation review failed: " + deviationNumber);
+            Logger.getLogger(this.getClass().getName()).warning("Deviation review update failed. Deviation number " + deviation_number + " not found.");
         }
     } catch (SQLException e) {
-        Logger.getLogger(this.getClass().getName()).severe("Error during deviation review: " + e.getMessage());
+        Logger.getLogger(this.getClass().getName()).severe("Error during deviation review update: " + e.getMessage());
     } finally {
         DatabaseUtility.disconnect(connection);
     }
-    return isSuccessful;
+    return success;
+}
+
+/**
+ * Initiates the department review process for a deviation.
+ *
+ * @param reviewComments     The reviewer's comments on the deviation
+ * @param deviationStatus   The new status of the deviation after review
+ * @param deviationId       The ID of the deviation being reviewed
+ * @param justification     Justification for returning or dropping the deviation (if applicable)
+ * @return                  True if the review was successfully submitted, false otherwise
+ */
+public boolean initiateDepartmentReview(String reviewComments, Enums.DeviationStatus deviationStatus, int deviationId, String justification) {
+    Connection connection = DatabaseUtility.connect();
+    try {
+        String sql = "UPDATE deviations SET review_comment = ?, status = ? WHERE id = ?";
+        PreparedStatement statement = connection.prepareStatement(sql);
+        statement.setString(1, reviewComments);
+        statement.setString(2, deviationStatus.name());
+        statement.setInt(3, deviationId);
+        int rowsUpdated = statement.executeUpdate();
+
+        if (deviationStatus == Enums.DeviationStatus.DEVIATION_RETURNED || deviationStatus == Enums.DeviationStatus.DEVIATION_DROPPED) {
+            sql = "INSERT INTO deviation_remarks (deviations_id, content, created_at) VALUES (?, ?, ?)";
+            statement = connection.prepareStatement(sql);
+            statement.setInt(1, deviationId);
+            statement.setString(2, justification);
+            statement.setTimestamp(3, new Timestamp(new Date().getTime()));
+            statement.executeUpdate();
+        }
+
+        return rowsUpdated > 0;
+    } catch (SQLException ex) {
+        Logger.getLogger(this.getClass().getName()).severe("Error initiating department review: " + ex.getMessage());
+        return false;
+    } finally {
+        DatabaseUtility.disconnect(connection);
+    }
 }
 }

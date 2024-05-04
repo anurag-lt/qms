@@ -1,0 +1,46 @@
+@charset "ISO-8859-1";
+
+.widget-button {
+    position: absolute;
+    top: 0;
+    right: 0;
+    margin: 25px; /* Adjust as needed for spacing */
+    display: block;
+    padding: 10px;
+    z-index: 2; /* Ensure the button is above the widget content */
+}
+
+.widget-container {
+    position: relative;
+    /* This makes sure the button positions correctly within the widget */
+}
+
+.widget-pulse {
+    position: relative;
+    top: 12px;
+    right: 12px;
+}
+
+.Blink {
+    animation: blinker 1.5s cubic-bezier(.5, 0, 1, 1) infinite alternate;
+}
+
+@keyframes blinker {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+.owl-theme .owl-dots, .owl-theme .owl-nav {
+    text-align: center;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body #sync1.owl-theme .owl-prev {
+    left: 5px;
+    top: 40%;
+}
+
+body #sync1.owl-theme .owl-next {
+    right: 5px;
+    top: 40%;
+}
